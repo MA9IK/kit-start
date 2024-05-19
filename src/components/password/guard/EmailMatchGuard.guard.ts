@@ -1,7 +1,7 @@
 import {
+  Injectable,
   CanActivate,
   ExecutionContext,
-  Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
 import { AuthService } from '../../auth/auth.service';
@@ -14,17 +14,27 @@ export class EmailMatchGuard implements CanActivate {
     const request = context.switchToHttp().getRequest();
     const authHeader = request.headers.authorization;
 
-    if (!authHeader) throw new UnauthorizedException('Not authorized');
+    if (!authHeader) {
+      throw new UnauthorizedException('No authorization header');
+    }
 
     const token = authHeader.split(' ')[1];
+    if (!token) {
+      throw new UnauthorizedException('Invalid token format');
+    }
 
-    if (!token) throw new UnauthorizedException('No token provided');
+    const user = await this.authService.verifyUser(token);
+    if (!user) {
+      throw new UnauthorizedException('Invalid token');
+    }
+    const providedTokenInBody = request.body.token;
+    const userInBody = this.authService.decodeToken(providedTokenInBody);
 
-    const user = await this.authService.decodeToken(token);
+    const emailInToken = user.email;
+    const emailInBody = userInBody.email;
 
-    const emailInBody = request.body.email;
-    const emailInToken = user.user.email;
+    request.user = user;
 
-    return emailInBody === emailInToken;
+    return emailInToken === emailInBody;
   }
 }
